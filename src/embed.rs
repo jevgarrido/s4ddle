@@ -1,20 +1,23 @@
-// MINRES
-//
-pub fn minres() {}
+pub use self::cr::*;
+pub use self::minres::*;
+pub use self::symmlq::*;
 
-// SYMMLQ
-//
-pub fn symmlq() {}
+pub use self::crf::*;
+pub use self::minresf::*;
+pub use self::symmlqf::*;
 
-// GCR
-//
-pub fn gcr() {}
+// f64 Modules
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_minres() {
-        let g = vec![1.0, 3.0, 5.0];
-        println!("{:?}", g);
-    }
-}
+mod operators;
+
+mod cr;
+mod minres;
+mod symmlq;
+
+// f32 Modules
+
+mod operatorsf;
+
+mod crf;
+mod minresf;
+mod symmlqf;
