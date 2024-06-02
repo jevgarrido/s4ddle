@@ -12,3 +12,6 @@ keywords = ["no_std", "solver", "sparse", "symmetric", "linear", "systems", "alg
 default = ["std"]
 std = []
 
+[dependencies]
+libm = "0.2.8"
+
