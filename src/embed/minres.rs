@@ -132,10 +132,7 @@ pub fn minres_precond() {}
 
 #[cfg(test)]
 mod tests {
-    use crate::embed::minres::{dot, spmv};
-
-    use super::minres;
-    use crate::embed::operators::*;
+    use super::*;
 
     #[test]
     fn minres_identity() {
@@ -168,11 +165,11 @@ mod tests {
         diff.add(-1.0, &b);
         let true_residual = dot(&diff, &diff);
 
-        assert!(true_residual <= tolerance.powi(2));
+        assert!(true_residual.sqrt() <= tolerance);
 
         dbg!(success);
-        dbg!(residual);
-        dbg!(true_residual);
+        dbg!(residual.abs());
+        dbg!(true_residual.sqrt());
         dbg!(iters);
 
         // provide the solution as initial guess
@@ -198,11 +195,11 @@ mod tests {
         diff.add(-1.0, &b);
         let true_residual = dot(&diff, &diff);
 
-        assert!(true_residual <= tolerance.powi(2));
+        assert!(true_residual.sqrt() <= tolerance);
 
         dbg!(success);
-        dbg!(residual);
-        dbg!(true_residual);
+        dbg!(residual.abs());
+        dbg!(true_residual.sqrt());
         dbg!(iters);
     }
 }
