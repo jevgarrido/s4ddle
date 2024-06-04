@@ -1,5 +1,8 @@
 use crate::embed::operators::*;
 
+/// Conjugate residual method, **CR**
+/// Reference:
+///     Luenberger, David G., "The Conjugate Residual Method for Constrained Minimization Problems", SIAM Journal on Numerical Analysis, Vol. 7, No. 3, September 1970, doi:[10.1137/0707032](https://www.doi.org/10.1137/0707032)
 pub fn cr(
     x: &mut [f64],
     mrows: &[usize],

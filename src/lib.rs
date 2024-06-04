@@ -4,3 +4,8 @@ pub mod embed;
 
 #[cfg(feature = "std")]
 pub mod os;
+
+#[cfg(feature = "std")]
+mod readwrite;
+
+pub use readwrite::*;

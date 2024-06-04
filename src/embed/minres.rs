@@ -54,7 +54,6 @@ pub fn minres(
         return (1, norm_r0, 0);
     }
 
-    // Make v unit length
     v.scale(1.0 / norm_r0);
     residual = norm_r0;
 
