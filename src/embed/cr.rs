@@ -12,11 +12,11 @@ pub fn cr(
     tol: &f64,
     maxiters: &usize,
     r: &mut [f64],
-    mut pk: &mut [f64],
-    mut pkm1: &mut [f64],
-    mut sk: &mut [f64],
-    mut skm1: &mut [f64],
-    mut aux: &mut [f64],
+    pk: &mut [f64],
+    pkm1: &mut [f64],
+    sk: &mut [f64],
+    skm1: &mut [f64],
+    aux: &mut [f64],
 ) -> (bool, usize, f64) {
     let squared_tol = tol * tol;
     let mut alpha: f64;
@@ -26,7 +26,8 @@ pub fn cr(
     aux.reset();
 
     // r = b - A * x;
-    r.linear_comb(1.0, b, -1.0, spmv(pk, mrows, mcols, mvals, x));
+    spmv(pk, mrows, mcols, mvals, x);
+    r.linear_comb(1.0, b, -1.0, pk);
 
     // p_k = r;
     pk.copy_from_slice(&r);
@@ -47,7 +48,7 @@ pub fn cr(
         pkm1.copy_from_slice(pk);
         skm1.copy_from_slice(sk);
 
-        if alpha * alpha > squared_tol {
+        if alpha.abs() > *tol {
             // alpha != 0
 
             // aux = A * r;

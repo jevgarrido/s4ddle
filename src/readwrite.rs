@@ -13,11 +13,11 @@ pub fn mm_read(file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usi
     let mut meta_line: u32 = 1;
 
     for c in string_content.chars() {
-        at_meta_line = at_meta_line || (previous_char == '\n' && c != '%');
-
         if previous_char == '\n' {
             meta_line += 1;
         }
+
+        at_meta_line = at_meta_line || (previous_char == '\n' && c != '%');
 
         if at_meta_line {
             if c == ' ' {
@@ -25,7 +25,9 @@ pub fn mm_read(file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usi
             }
 
             if c != ' ' && c != '\n' {
-                working_slice.push(c);
+                if c != '\r' {
+                    working_slice.push(c);
+                }
             } else {
                 if word == 2 {
                     size = working_slice.parse().ok().unwrap();
@@ -66,7 +68,9 @@ pub fn mm_read(file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usi
             }
 
             if c != ' ' && c != '\n' {
-                working_slice.push(c);
+                if c != '\r' {
+                    working_slice.push(c);
+                }
             } else {
                 kk = (line_counter - meta_line - 1) as usize;
 
@@ -87,18 +91,21 @@ pub fn mm_read(file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usi
     return (rows, cols, vals, size, nonzeros);
 }
 
-/// Load a matrix from a file in Rutherford Boeing format.
-pub fn rb_read() -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usize) {
+pub fn mm_import(_file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usize) {
     todo!()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::*;
 
-    #[test]
-    fn testing_mm_read() {
-        let (rows, cols, vals, size, nonzeros) = mm_read("./data/nemeth01.mtx");
+    #[rstest]
+    #[case("./data/nemeth26.csv")]
+    #[case("./data/GHS_indef_qpband.csv")]
+    #[case("./data/FIDAP_ex4.csv")]
+    fn testing_mm_read(#[case] file_path: &str) {
+        let (rows, cols, vals, _size, nonzeros) = mm_read(file_path);
 
         assert!(rows.len() == nonzeros);
         assert!(cols.len() == nonzeros);
