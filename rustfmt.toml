@@ -1,3 +1,10 @@
 unstable_features = false
-blank_lines_lower_bound = 1
+blank_lines_lower_bound = 0
 blank_lines_upper_bound = 4
+
+reorder_imports = false
+struct_field_align_threshold = 20
+use_field_init_shorthand = true
+
+use_small_heuristics = "Max"
+max_width = 120

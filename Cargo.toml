@@ -13,6 +13,9 @@ default = ["std"]
 std = []
 
 [dependencies]
-libm = "0.2.8"
 rstest = "0.21.0"
 
+[dependencies.num-traits]
+version = "*"
+default-features = false
+features = ["libm"]

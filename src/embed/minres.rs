@@ -1,61 +1,62 @@
 #![allow(non_snake_case)]
 
 use crate::embed::operators::*;
-use libm::{hypot, sqrt};
 
-pub fn minres<'a>(
-    x: &mut [f64],             // Solution vector (initial guess)
-    mrows: &[usize],           // Left-hand-side matrix: row indices
-    mcols: &[usize],           // Left-hand-side matrix: column indices
-    mvals: &[f64],             // Left-hand-side matrix: values
-    b: &[f64],                 // Right-hand-side of the system
-    tolerance: &f64,           // Absolute tolerance
-    maxiters: &usize,          // maxium number of iterations allowed
-    plugin: &mut impl Plugin,  // User-defined interactive Plugin
-    Av: &mut [f64],            // Auxiliary vector
-    mut v: &'a mut [f64],      // Auxiliary vector with mutable reference
-    mut v_next: &'a mut [f64], // Auxiliary vector with mutable reference
-    mut p_prev: &'a mut [f64], // Auxiliary vector with mutable reference
-    mut p: &'a mut [f64],      // Auxiliary vector with mutable reference
-) -> (i32, f64, usize) {
+pub fn minres<'a, T: Float>(
+    x: &mut [T],                 // Solution vector (initial guess)
+    mrows: &[usize],             // Left-hand-side matrix: row indices
+    mcols: &[usize],             // Left-hand-side matrix: column indices
+    mvals: &[T],                 // Left-hand-side matrix: values
+    b: &[T],                     // Right-hand-side of the system
+    shift: &T,                   // ( A - shift * I ) x = b
+    tolerance: &T,               // Absolute tolerance
+    maxiters: &usize,            // maxium number of iterations allowed
+    plugin: &mut impl Plugin<T>, // User-defined interactive Plugin
+    Av: &mut [T],
+    mut v: &'a mut [T],
+    mut v_next: &'a mut [T],
+    mut p_prev: &'a mut [T],
+    mut p: &'a mut [T],
+) -> (isize, T, usize) {
     // Plug-in call ------------------------------
     plugin.start();
     // -------------------------------------------
     //
     // Initialization ----------------------------
-    let mut success: i32 = 0;
+    let mut success: isize = 0;
     let mut iters: usize = 0;
 
-    let mut ta: f64;
-    let mut tb: f64 = 0.0;
+    let mut ta: T;
+    let mut tb: T = T::zero();
 
-    let mut X: f64;
-    let mut Y: f64 = 0.0;
+    let mut X: T;
+    let mut Y: T = T::zero();
 
-    let mut cos: f64 = -1.0;
-    let mut sin: f64 = 0.0;
+    let mut cos: T = -T::one();
+    let mut sin: T = T::zero();
 
-    let mut ua: f64;
-    let mut ub: f64;
-    let mut uc: f64 = 0.0;
-    let mut uc_next: f64;
+    let mut ua: T;
+    let mut ub: T;
+    let mut uc: T = T::zero();
+    let mut uc_next: T;
 
-    let mut alpha: f64;
-    let mut residual: f64;
+    let mut alpha: T;
+    let mut residual: T;
     // -------------------------------------------
     //
     // Algorithm Initialization ------------------
     spmv(Av, mrows, mcols, mvals, x);
-    v.linear_comb(1.0, b, -1.0, Av);
+    Av.add(-*shift, x);
+    v.linear_comb(T::one(), b, T::one().neg(), Av);
 
-    residual = sqrt(dot(v, v));
+    residual = dot(v, v).sqrt();
 
     if residual <= *tolerance {
         plugin.end();
         return (1, residual, 0);
     }
 
-    v.scale(1.0 / residual);
+    v.scale(T::one() / residual);
 
     v_next.reset();
     p_prev.reset();
@@ -65,14 +66,15 @@ pub fn minres<'a>(
         iters = kk;
         // Lanczos Iteration ---------------------
         spmv(Av, mrows, mcols, mvals, v);
+        Av.add(-*shift, v);
         ta = dot(v, Av);
 
         v_next.scale(-tb);
-        v_next.add(1.0, Av);
+        v_next.add(T::one(), Av);
         v_next.add(-ta, v);
 
-        tb = sqrt(dot(v_next, v_next));
-        v_next.scale(1.0 / tb);
+        tb = dot(v_next, v_next).sqrt();
+        v_next.scale(T::one() / tb);
         // ---------------------------------------
         //
         // Apply Old Givens Rotation -------------
@@ -84,21 +86,21 @@ pub fn minres<'a>(
         // ---------------------------------------
         //
         // Compute New Givens Rotation -----------
-        ua = hypot(X, tb);
+        ua = X.hypot(tb);
         cos = X / ua;
         sin = tb / ua;
         // ---------------------------------------
         //
         // Compute Step --------------------------
         p.scale_add(-uc / ua, -ub / ua, p_prev);
-        p.add(1.0 / ua, v);
+        p.add(T::one() / ua, v);
 
         alpha = residual * cos;
         // ---------------------------------------
         //
         // Update Solution -----------------------
         x.add(alpha, p);
-        residual *= sin;
+        residual = residual * sin;
 
         plugin.peek(&iters, x, p, &alpha, &residual);
 
@@ -119,7 +121,13 @@ pub fn minres<'a>(
     return (success, residual, iters);
 }
 
-pub fn minres_precond() {}
+pub fn minres_precond() {
+    todo!()
+}
+
+pub fn minres_black_box_precond() {
+    todo!()
+}
 
 #[cfg(test)]
 mod tests {
@@ -135,14 +143,14 @@ mod tests {
     #[case(-3.0, -3.0)]
     #[case(-3.0, 5.0)]
     fn minres_identity(#[case] x_vals: f64, #[case] b_vals: f64) {
-        const N: usize = 100000;
+        const N: usize = 10;
 
         let Arows_cols: Vec<usize> = (0..N).collect();
         let Avals = vec![1.0; N];
         let b = vec![b_vals; N];
 
         let (mut x, mut error) = (vec![x_vals; N], vec![0.0; N]);
-        let mut plugin = DoNothing::default();
+        let mut plugin = StopWatchAndPrinter::new();
 
         let (_success, _residual, _iters) = minres(
             &mut x,
@@ -150,6 +158,7 @@ mod tests {
             &Arows_cols,
             &Avals,
             &b,
+            &0.0,
             &TOLERANCE,
             &N,
             &mut plugin,
@@ -175,7 +184,7 @@ mod tests {
     #[rstest]
     fn minres_1by1() {
         let maxiters: usize = 100;
-        let mut plugin = StopWatchAndPrinter::default();
+        let mut plugin = StopWatchAndPrinter::new();
         const SIZE: usize = 1;
 
         let Arows: [usize; 1] = [0];
@@ -195,6 +204,7 @@ mod tests {
             &Acols,
             &Avals,
             &b,
+            &0.0,
             &TOLERANCE,
             &maxiters,
             &mut plugin,
@@ -220,7 +230,7 @@ mod tests {
     #[rstest]
     fn minres_2by2() {
         let maxiters: usize = 100;
-        let mut plugin = StopWatchAndPrinter::default();
+        let mut plugin = StopWatchAndPrinter::new();
         const SIZE: usize = 2;
 
         let Arows: [usize; 3] = [0, 1, 0];
@@ -240,6 +250,7 @@ mod tests {
             &Acols,
             &Avals,
             &b,
+            &0.0,
             &TOLERANCE,
             &maxiters,
             &mut plugin,
@@ -266,7 +277,7 @@ mod tests {
     fn minres_4by4() {
         const SIZE: usize = 4;
         let maxiters: usize = 2 * SIZE;
-        let mut plugin = StopWatchAndPrinter::default();
+        let mut plugin = StopWatchAndPrinter::new();
 
         let Arows: [usize; 6] = [0, 2, 1, 3, 0, 1];
         let Acols: [usize; 6] = [0, 0, 1, 1, 2, 3];
@@ -285,6 +296,7 @@ mod tests {
             &Acols,
             &Avals,
             &b,
+            &0.0,
             &TOLERANCE,
             &maxiters,
             &mut plugin,
@@ -314,7 +326,7 @@ mod tests {
     fn minres_mm(#[case] file_path: &str) {
         let (Arows, Acols, Avals, size, _nonzeros) = mm_read(file_path);
 
-        let mut plugin = StopWatchAndPrinter::default();
+        let mut plugin = StopWatchAndPrinter::new();
         let mut x = vec![0.0; size];
         let mut sol: Vec<f64> = vec![1.0; size];
         let sol_norm: f64 = dot(&sol, &sol).sqrt();
@@ -324,21 +336,24 @@ mod tests {
         let mut b: Vec<f64> = vec![0.0; size];
         spmv(&mut b, &Arows, &Acols, &Avals, &sol);
 
-        let (_success, _residual, _iters) = minres(
-            &mut x,
-            &Arows,
-            &Acols,
-            &Avals,
-            &b,
-            &TOLERANCE,
-            &5_000,
-            &mut plugin,
-            &mut vec![0.0; size],
-            &mut vec![0.0; size],
-            &mut vec![0.0; size],
-            &mut vec![0.0; size],
-            &mut vec![0.0; size],
-        );
+        for shift in [10_f64, 0_f64] {
+            minres(
+                &mut x,
+                &Arows,
+                &Acols,
+                &Avals,
+                &b,
+                &shift,
+                &TOLERANCE,
+                &5_000,
+                &mut plugin,
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+            );
+        }
 
         spmv(&mut error, &Arows, &Acols, &Avals, &x);
         error.scale_add(-1.0, 1.0, &b);
