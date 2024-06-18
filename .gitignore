@@ -9,7 +9,7 @@ tags*
 .vscode/
 
 # Ignore data folder
-data/
+# data/
 
 # ---
 
