@@ -12,10 +12,10 @@ keywords = ["no_std", "solver", "sparse", "symmetric", "linear", "systems", "alg
 default = ["std"]
 std = []
 
-[dependencies]
-rstest = "0.21.0"
-
 [dependencies.num-traits]
-version = "*"
+version = "0.2"
 default-features = false
 features = ["libm"]
+
+[dev-dependencies]
+rstest = "*"

@@ -2,11 +2,12 @@
 
 use crate::embed::operators::*;
 
+/// Solves the system ( A - shift * I ) x = b.
 pub fn minres<'a, T: Float>(
     x: &mut [T],                 // Solution vector (initial guess)
-    mrows: &[usize],             // Left-hand-side matrix: row indices
-    mcols: &[usize],             // Left-hand-side matrix: column indices
-    mvals: &[T],                 // Left-hand-side matrix: values
+    mrows: &[usize],             // Coefficient matrix A: row indices
+    mcols: &[usize],             // Coefficient matrix A: column indices
+    mvals: &[T],                 // Coefficient matrix A: values
     b: &[T],                     // Right-hand-side of the system
     shift: &T,                   // ( A - shift * I ) x = b
     tolerance: &T,               // Absolute tolerance
@@ -100,13 +101,19 @@ pub fn minres<'a, T: Float>(
         //
         // Update Solution -----------------------
         x.add(alpha, p);
-        residual = residual * sin;
+        residual *= sin;
 
         plugin.peek(&iters, x, p, &alpha, &residual);
 
         if residual <= *tolerance {
-            success = 1;
-            break;
+            spmv(Av, mrows, mcols, mvals, x);
+            Av.add(-*shift, x);
+            Av.scale_add(-T::one(), T::one(), b);
+
+            if dot(Av, Av).sqrt() <= *tolerance {
+                success = 1;
+                break;
+            }
         }
         // ---------------------------------------
         //
@@ -320,8 +327,11 @@ mod tests {
     }
 
     #[rstest]
+    #[case("./data/nemeth01.csv")]
     #[case("./data/nemeth26.csv")]
     #[case("./data/GHS_indef_qpband.csv")]
+    #[case("./data/GHS_indef_tuma2.csv")]
+    #[case("./data/GHS_indef_linverse.csv")]
     #[case("./data/FIDAP_ex4.csv")]
     fn minres_mm(#[case] file_path: &str) {
         let (Arows, Acols, Avals, size, _nonzeros) = mm_read(file_path);
@@ -345,7 +355,7 @@ mod tests {
                 &b,
                 &shift,
                 &TOLERANCE,
-                &5_000,
+                &10_000,
                 &mut plugin,
                 &mut vec![0.0; size],
                 &mut vec![0.0; size],

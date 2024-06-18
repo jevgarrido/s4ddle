@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
+use core::ops::{AddAssign, SubAssign, MulAssign, DivAssign, RemAssign};
 use core::fmt::LowerExp;
-use core::ops::{AddAssign, DivAssign, MulAssign, RemAssign, SubAssign};
 use core::iter::Sum;
 use num_traits::float::Float as NumFloat;
 
@@ -50,7 +50,7 @@ impl<T: Float> VectorManipulation<T> for [T] {
     }
 }
 
-/// Computes the sparse matrix vector (SpMV) multiplication.
+/// Computes the sparse matrix-vector (SpMV) multiplication.
 /// Matrix should be in COO format.
 #[inline(always)]
 pub fn spmv<T: Float>(product: &mut [T], mrows: &[usize], mcols: &[usize], mvals: &[T], vector: &[T]) {
@@ -90,9 +90,11 @@ impl DoNothing {
 }
 
 impl<T: Float> Plugin<T> for DoNothing {
+    #[inline(always)]
     fn start(&mut self) {}
     #[inline(always)]
     fn peek(&mut self, _iters: &usize, _x: &[T], _p: &[T], _alpha: &T, _residual: &T) {}
+    #[inline(always)]
     fn end(&mut self) {}
 }
 

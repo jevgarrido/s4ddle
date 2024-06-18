@@ -3,10 +3,13 @@
 *.temp
 
 # Ignore tags files
-tags
+tags*
 
 # Ignore vscode folder
 .vscode/
+
+# Ignore data folder
+data/
 
 # ---
 
