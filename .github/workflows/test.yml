@@ -16,11 +16,13 @@ jobs:
 
     steps:
     - name: Dropbox import
-      uses: gbrls/action-dropbox-download@main
+      uses: lgxm3z/gh-actions-dropbox/files/download_zip@2
       with:
-          dropbox-refresh-token: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
-          source-path: '/test-data/symmetric-matrices'
-          destination-path: '/data'
+        DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+        DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+        DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        SOURCE_PATH: /test-data/symmetric-matrices
+        DEST_PATH: /data/matrices.zip
     - uses: actions/checkout@v4
     - name: Run tests
       run: cargo test --verbose
