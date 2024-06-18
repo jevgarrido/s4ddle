@@ -16,13 +16,13 @@ jobs:
 
     steps:
     - uses: tlambert03/dropbox-download-action@v1
-    - name: Dropbox import
       with:
         dropbox-refresh-token: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
         dropbox-app-key: ${{ secrets.DROPBOX_APP_KEY }}
         dropbox-app-secret: ${{ secrets.DROPBOX_APP_SECRET }}
         source-path: "/test-data/symmetric-matrices"
         dest-path: "./data"
+    - name: Dropbox import
     - uses: actions/checkout@v4
     - name: Run tests
       run: cargo test --verbose
