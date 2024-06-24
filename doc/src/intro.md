@@ -1,23 +1,41 @@
 
 # Introduction
+This crate provides solvers for sparse symmetric systems of linear equations in the following form:
+$$ (A - s I ) x = b $$
+$$ M (A - s I ) x = M b $$
 
-This crate provides a variety of solvers for linear systems of equations.
-In this context, several methods are implemented and an attempt is made at providing several different interfaces to such methods.
+Where \\(A\\) is a Real symmetric coefficient matrix (no assumption on its definiteness),
+\\(s\\) is a Real scalar value,
+\\(I\\) is the identity matrix,
+\\(b\\) is an arbitrary Real vector,
+\\(M\\) is a Real full-rank square preconditioning matrix (no assumption on its symmetry).
 
-One major reason to write several interfaces is enabling the execution of the methods in 'no\_std' environments as well as in environments where the standard library is available, for this, two modules, ```embed``` and ```os```, are provided which tackle these environment requirements respectively.
+Internally, the preconditioned case is treated as follows:
+$$ M (A - s I ) M^\top y = M b \, \quad x = M^\top y $$
+which constitutes a symmetric system in terms of \\(y\\).
 
-Generally speaking, different systems and applications have different needs in terms of what data types can be used, the ammount of memory available, ability for parallel execution, wether or not preconditioning is necessary, etc. .
-
-
-## Methods Provided
-
+## Methods implemented
 * CR
-* MINRES
+    - [ ] No preconditioning
+    - [ ] Preconditioning through a "Black-Box" Interface
 * SYMMLQ
+    - [ ] No preconditioning
+    - [ ] Preconditioning through a "Black-Box" Interface
+* MINRES
+    - [x] No preconditioning
+    - [ ] Preconditioning through a "Black-Box" Interface
+* MINRES_QLP 
+    - [ ] No preconditioning
+    - [ ] Preconditioning through a "Black-Box" Interface
 
-## 'no\_std' Environments
-If your application needs a 'no\_std' compatible linear solver, choose the interfaces available in module ```embed```. 
+MINRES_QLP returns the pseudoinverse solution if \\(A\\) is singular. However, each iteration of MINRES_QLP is more expensive that that of MINRES.
 
+## `#![no_std]` Environments
+If your application requires `#![no_std]`, make sure to disable default features. 
+To do so add the following to your ```Cargo.toml```:
+```toml
+[dependencies.s4ddle]
+version = "*"
+default-features = false
+```
 
-
-## 'std' Environments

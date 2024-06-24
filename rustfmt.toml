@@ -3,6 +3,9 @@ blank_lines_lower_bound = 0
 blank_lines_upper_bound = 4
 
 reorder_imports = false
+reorder_impl_items = false
+reorder_modules = false
+
 struct_field_align_threshold = 20
 use_field_init_shorthand = true
 
