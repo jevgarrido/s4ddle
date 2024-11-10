@@ -2,15 +2,9 @@
 
 pub mod operators;
 
-pub use cr::*;
 pub use minres::*;
-pub use symmlq::*;
-pub use minres_qlp::*;
 
-mod cr;
 mod minres;
-mod symmlq;
-mod minres_qlp;
 
 #[cfg(feature = "std")]
 pub mod readwrite;

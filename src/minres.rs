@@ -2,14 +2,15 @@
 
 use crate::operators::*;
 
-/// Solves the system ( A - shift * I ) x = b.
+/// Implementation of the MINRES algorithm.
+/// Coefficient matrix required explicitly.
 pub fn minres<'a, T: Float>(
     x: &mut [T],                 // Solution vector (initial guess)
     mrows: &[usize],             // Coefficient matrix A: row indices
     mcols: &[usize],             // Coefficient matrix A: column indices
     mvals: &[T],                 // Coefficient matrix A: values
     b: &[T],                     // Right-hand-side of the system
-    shift: &T,                   // ( A - shift * I ) x = b
+    shift: &T,                   // ( A + shift * I ) x = b
     tolerance: &T,               // Absolute tolerance
     maxiters: &usize,            // maxium number of iterations allowed
     plugin: &mut impl Plugin<T>, // User-defined interactive Plugin
@@ -47,7 +48,7 @@ pub fn minres<'a, T: Float>(
     //
     // Algorithm Initialization ------------------
     spmv(Av, mrows, mcols, mvals, x);
-    Av.add(-*shift, x);
+    Av.add(*shift, x);
     v.linear_comb(T::one(), b, T::one().neg(), Av);
 
     residual = dot(v, v).sqrt();
@@ -67,7 +68,7 @@ pub fn minres<'a, T: Float>(
         iters = kk;
         // Lanczos Iteration ---------------------
         spmv(Av, mrows, mcols, mvals, v);
-        Av.add(-*shift, v);
+        Av.add(*shift, v);
         ta = dot(v, Av);
 
         v_next.scale(-tb);
@@ -122,12 +123,14 @@ pub fn minres<'a, T: Float>(
     return (success, residual, iters);
 }
 
-/// Solves the system M ( A - shift * I ) x = M b.
+/// Implementation of the Preconditioned MINRES algorithm.
+/// Coefficient matrix and preconditioner not required explicitly.
+/// Matrix-vector products are outsourced to you through a "black box" interface.
 pub fn minres_black_box<'a, T: Float>(
     mut x: &'a mut [T],           // Solution vector (initial guess)
     black_box: &impl BlackBox<T>, // Black box plugin
     b: &[T],                      // Right-hand-side of the system
-    shift: &T,                    // ( A - shift * I ) x = b
+    shift: &T,                    // ( A + shift * I ) x = b
     tolerance: &T,                // Absolute tolerance
     maxiters: &usize,             // maxium number of iterations allowed
     plugin: &mut impl Plugin<T>,  // User-defined interactive Plugin
@@ -166,10 +169,10 @@ pub fn minres_black_box<'a, T: Float>(
     //
     // Algorithm Initialization ------------------
 
-    // v1 = r0 = M * [ b - (A - shift * I ) * x0 ]
+    // v1 = r0 = M * [ b - (A + shift * I ) * x0 ]
     Av.reset();
     black_box.apply_A(Av, x);
-    Av.add(-*shift, x);
+    Av.add(*shift, x);
     v_next.linear_comb(T::one(), b, -T::one(), Av);
     black_box.apply_precond(v, v_next);
 
@@ -198,7 +201,7 @@ pub fn minres_black_box<'a, T: Float>(
         // Lanczos Iteration ---------------------
         black_box.apply_precond_transpose(Mv, v);
         black_box.apply_A(Av, Mv);
-        Av.add(-*shift, Mv);
+        Av.add(*shift, Mv);
         ta = dot(Mv, Av);
 
         v_next.scale(-tb);
