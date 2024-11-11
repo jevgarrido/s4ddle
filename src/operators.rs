@@ -20,6 +20,9 @@ pub trait VectorManipulation<T: Float> {
     fn add(&mut self, beta: T, y: &[T]) -> &mut Self;
     fn scale_add(&mut self, alpha: T, beta: T, y: &[T]) -> &mut Self;
     fn linear_comb(&mut self, a: T, x: &[T], b: T, y: &[T]) -> &mut Self;
+    fn norm_1(&self) -> T;
+    fn norm_2(&self) -> T;
+    fn norm_inf(&self) -> T;
 }
 
 impl<T: Float> VectorManipulation<T> for [T] {
@@ -53,15 +56,43 @@ impl<T: Float> VectorManipulation<T> for [T] {
         }
         self
     }
+
+    #[inline(always)]
+    fn norm_1(&self) -> T {
+        self.iter().map(|x| x.abs()).sum::<T>()
+    }
+
+    #[inline(always)]
+    fn norm_2(&self) -> T {
+        self.iter().map(|x| x.powi(2)).sum::<T>().sqrt()
+    }
+
+    #[inline(always)]
+    fn norm_inf(&self) -> T {
+        self.iter().max_by(|x, y| x.abs().partial_cmp(&y.abs()).unwrap()).unwrap().abs()
+    }
 }
 
 /// Computes the sparse matrix-vector (SpMV) multiplication.
+/// $$y = A v$$
 /// Matrix should be in COO format.
 /// Can be called with input types f32 and f64.
 #[inline(always)]
 pub fn spmv<T: Float>(product: &mut [T], mrows: &[usize], mcols: &[usize], mvals: &[T], vector: &[T]) {
     product.reset();
     for ((row, col), val) in mrows.iter().zip(mcols.iter()).zip(mvals.iter()) {
+        product[*row] += *val * vector[*col];
+    }
+}
+
+/// Computes the sparse matrix-vector (SpMV) multiplication with a transposed matrix.
+/// $$y = A^T v$$
+/// Matrix should be in COO format.
+/// Can be called with input types f32 and f64.
+#[inline(always)]
+pub fn spmv_transpose<T: Float>(product: &mut [T], mrows: &[usize], mcols: &[usize], mvals: &[T], vector: &[T]) {
+    product.reset();
+    for ((col, row), val) in mrows.iter().zip(mcols.iter()).zip(mvals.iter()) {
         product[*row] += *val * vector[*col];
     }
 }
@@ -73,33 +104,28 @@ pub fn dot<T: Float>(a: &[T], b: &[T]) -> T {
     a.iter().zip(b.iter()).map(|(x, y)| *x * *y).sum::<T>()
 }
 
-/// User API for "hiden" matrix-vector products.
+// ------------------------------------------------------------------------------------------------
+// Plugins
+// ------------------------------------------------------------------------------------------------
+
+/// API for "hiden" matrix-vector products.
+/// Default implementation for an identity preconditioner.
 pub trait BlackBox<T: Float> {
     fn apply_A(&self, product: &mut [T], vector: &[T]);
-    fn apply_precond(&self, product: &mut [T], vector: &[T]);
-    fn apply_precond_transpose(&self, product: &mut [T], vector: &[T]);
-    fn apply_precond_inverse_transpose(&self, product: &mut [T], vector: &[T]);
-}
 
-/// User API for "hiden" matrix-vector products. Provides default implementation for the identity preconditioner.
-pub trait BlackBoxIdentityPrecond<T: Float>: BlackBox<T> {
     #[inline(always)]
     fn apply_precond(&self, product: &mut [T], vector: &[T]) {
-        for (kk, elm) in product.iter_mut().enumerate() {
-            *elm = vector[kk];
-        }
+        product.copy_from_slice(vector);
     }
+
     #[inline(always)]
     fn apply_precond_transpose(&self, product: &mut [T], vector: &[T]) {
-        for (kk, elm) in product.iter_mut().enumerate() {
-            *elm = vector[kk];
-        }
+        product.copy_from_slice(vector);
     }
+
     #[inline(always)]
     fn apply_precond_inverse_transpose(&self, product: &mut [T], vector: &[T]) {
-        for (kk, elm) in product.iter_mut().enumerate() {
-            *elm = vector[kk];
-        }
+        product.copy_from_slice(vector);
     }
 }
 

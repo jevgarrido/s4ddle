@@ -2,8 +2,7 @@
 
 This method solves linear system in the following forms:
 $$ (A - s I ) x = b $$
-$$ M (A - s I ) x = M b \quad x = M^\top \tilde{x}$$ 
-$$ M_1 (A - s I ) x = M_1 b \quad x = M_2 \tilde{x}$$
+$$ M (A - s I ) x = M b \quad x = M^\top y$$ 
 
 Where \\(A\\) is a Real symmetric coefficient matrix (no assumption on its definiteness),
 \\(s\\) is a Real scalar value,
@@ -32,5 +31,5 @@ which constitutes a symmetric system in terms of \\(y\\).
 <!-- ai (ei * ei) = x * ei - sum_{j\<i} aj (ej * ei) -->
 
 
-References:
+## References:
 * C. C. Paige and M. A. Saunders (1975). "Solution of sparse indefinite systems of linear equations", SIAM J. Numerical Analysis 12, 617-629

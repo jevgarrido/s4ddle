@@ -4,16 +4,14 @@ use crate::operators::*;
 
 /// Implementation of the MINRES algorithm.
 /// Coefficient matrix required explicitly.
-pub fn minres<'a, T: Float>(
-    x: &mut [T],                 // Solution vector (initial guess)
-    mrows: &[usize],             // Coefficient matrix A: row indices
-    mcols: &[usize],             // Coefficient matrix A: column indices
-    mvals: &[T],                 // Coefficient matrix A: values
-    b: &[T],                     // Right-hand-side of the system
-    shift: &T,                   // ( A + shift * I ) x = b
-    tolerance: &T,               // Absolute tolerance
-    maxiters: &usize,            // maxium number of iterations allowed
-    plugin: &mut impl Plugin<T>, // User-defined interactive Plugin
+pub fn minres_black_box<'a, T: Float>(
+    x: &mut [T],                  // Solution vector (initial guess)
+    black_box: &impl BlackBox<T>, // Black box plugin
+    b: &[T],                      // Right-hand-side of the system
+    shift: &T,                    // ( A + shift * I ) x = b
+    tolerance: &T,                // Absolute tolerance
+    maxiters: &usize,             // maxium number of iterations allowed
+    plugin: &mut impl Plugin<T>,  // User-defined interactive Plugin
     Av: &mut [T],
     mut v: &'a mut [T],
     mut v_next: &'a mut [T],
@@ -47,7 +45,7 @@ pub fn minres<'a, T: Float>(
     // -------------------------------------------
     //
     // Algorithm Initialization ------------------
-    spmv(Av, mrows, mcols, mvals, x);
+    black_box.apply_A(Av, x);
     Av.add(*shift, x);
     v.linear_comb(T::one(), b, T::one().neg(), Av);
 
@@ -68,7 +66,7 @@ pub fn minres<'a, T: Float>(
     for kk in 1..=*maxiters {
         iters = kk;
         // Lanczos Iteration ---------------------
-        spmv(Av, mrows, mcols, mvals, v);
+        black_box.apply_A(Av, v);
         Av.add(*shift, v);
         ta = dot(v, Av);
 
@@ -133,6 +131,19 @@ mod tests {
     const TOLERANCE: f64 = 1e-12;
     const REDUCED_TOL: f64 = 1e-8;
 
+    struct BasicBlackBox<'a, T: Float> {
+        rows: &'a [usize],
+        cols: &'a [usize],
+        vals: &'a [T],
+    }
+
+    impl<T: Float> BlackBox<T> for BasicBlackBox<'_, T> {
+        #[inline(always)]
+        fn apply_A(&self, product: &mut [T], vector: &[T]) {
+            spmv(product, self.rows, self.cols, self.vals, vector);
+        }
+    }
+
     #[rstest]
     #[case(0.0, -3.0)]
     #[case(-3.0, -3.0)]
@@ -141,17 +152,18 @@ mod tests {
         const N: usize = 10;
 
         let Arows_cols: Vec<usize> = (0..N).collect();
-        let Avals = vec![1.0; N];
+        let Avals: Vec<f64> = vec![1.0; N];
+
         let b = vec![b_vals; N];
 
         let (mut x, mut error) = (vec![x_vals; N], vec![0.0; N]);
         let mut plugin = StopWatchAndPrinter::new();
 
-        let (_success, _residual, _iters) = minres(
+        let black_box_instance = BasicBlackBox { rows: &Arows_cols, cols: &Arows_cols, vals: &Avals };
+
+        let (_success, _residual, _iters) = minres_black_box(
             &mut x,
-            &Arows_cols,
-            &Arows_cols,
-            &Avals,
+            &black_box_instance,
             &b,
             &0.0,
             &TOLERANCE,
@@ -186,6 +198,8 @@ mod tests {
         let Acols: [usize; 1] = [0];
         let Avals: [f64; 1] = [2.0; 1];
 
+        let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
+
         let sol: [f64; SIZE] = [1.0];
 
         let mut b: [f64; SIZE] = [0.0; SIZE];
@@ -193,11 +207,9 @@ mod tests {
 
         let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
 
-        let (_success, _residual, _iters) = minres(
+        let (_success, _residual, _iters) = minres_black_box(
             &mut x,
-            &Arows,
-            &Acols,
-            &Avals,
+            &black_box_instance,
             &b,
             &0.0,
             &TOLERANCE,
@@ -232,6 +244,8 @@ mod tests {
         let Acols: [usize; 3] = [0, 0, 1];
         let Avals: [f64; 3] = [1.0, 1.0, 1.0];
 
+        let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
+
         let sol: [f64; SIZE] = [1.0, 1.0];
 
         let mut b: [f64; SIZE] = [0.0; SIZE];
@@ -239,11 +253,9 @@ mod tests {
 
         let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
 
-        let (_success, _residual, _iters) = minres(
+        let (_success, _residual, _iters) = minres_black_box(
             &mut x,
-            &Arows,
-            &Acols,
-            &Avals,
+            &black_box_instance,
             &b,
             &0.0,
             &TOLERANCE,
@@ -278,6 +290,8 @@ mod tests {
         let Acols: [usize; 6] = [0, 0, 1, 1, 2, 3];
         let Avals: [f64; 6] = [3.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 
+        let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
+
         let sol: [f64; SIZE] = [1.0; SIZE];
 
         let mut b: [f64; SIZE] = [0.0; SIZE];
@@ -285,11 +299,9 @@ mod tests {
 
         let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
 
-        let (_success, _residual, _iters) = minres(
+        let (_success, _residual, _iters) = minres_black_box(
             &mut x,
-            &Arows,
-            &Acols,
-            &Avals,
+            &black_box_instance,
             &b,
             &0.0,
             &TOLERANCE,
@@ -324,10 +336,12 @@ mod tests {
     fn test_matrix_market(#[case] file_path: &str) {
         let (Arows, Acols, Avals, size, _nonzeros) = mm_read(file_path);
 
+        let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
+
         let mut plugin = StopWatchAndPrinter::new();
         let mut x = vec![0.0; size];
         let mut sol: Vec<f64> = vec![1.0; size];
-        let sol_norm: f64 = dot(&sol, &sol).sqrt();
+        let sol_norm: f64 = sol.norm_2(); // dot(&sol, &sol).sqrt();
         sol.scale(1.0 / sol_norm);
 
         let mut error = vec![0.0; size];
@@ -335,11 +349,9 @@ mod tests {
         spmv(&mut b, &Arows, &Acols, &Avals, &sol);
 
         for shift in [1e1, 1e0, 1e-1, 0.0] {
-            minres(
+            minres_black_box(
                 &mut x,
-                &Arows,
-                &Acols,
-                &Avals,
+                &black_box_instance,
                 &b,
                 &shift,
                 &TOLERANCE,
@@ -354,12 +366,10 @@ mod tests {
         }
 
         spmv(&mut error, &Arows, &Acols, &Avals, &x);
-        error.scale_add(-1.0, 1.0, &b);
 
-        let true_residual = dot(&error, &error).sqrt();
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
-        error.linear_comb(1.0, &x, -1.0, &sol);
-        let solution_error = dot(&error, &error).sqrt();
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
 
         assert!(true_residual <= TOLERANCE);
         assert!(solution_error <= REDUCED_TOL);
