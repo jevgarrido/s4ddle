@@ -1,6 +1,7 @@
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
 
 pub mod operators;
+pub mod plugins;
 
 pub use minres::*;
 pub use minres_black_box::*;

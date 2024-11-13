@@ -1,18 +1,19 @@
 #![allow(non_snake_case)]
 
 use crate::operators::*;
+use crate::plugins::*;
 
-/// Implementation of the Preconditioned MINRES algorithm.
-/// Coefficient matrix and preconditioner not required explicitly.
+/// Implementation of the preconditioned MINRES algorithm.
+/// Coefficient matrix and preconditioner are NOT explicittly required.
 /// Matrix-vector products are outsourced to you through a "black box" interface.
 pub fn minres_black_box_precond<'a, T: Float>(
-    mut x: &'a mut [T],           // Solution vector (initial guess)
-    black_box: &impl BlackBox<T>, // Black box plugin
-    b: &[T],                      // Right-hand-side of the system
-    shift: &T,                    // M ( A + shift * I ) x = M b, x = M^T y
-    tolerance: &T,                // Absolute tolerance
-    maxiters: &usize,             // maxium number of iterations allowed
-    plugin: &mut impl Plugin<T>,  // User-defined interactive Plugin
+    mut x: &'a mut [T],                  // Solution vector (initial guess)
+    black_box: &impl BlackBoxPrecond<T>, // Black box plugin
+    b: &[T],                             // Right-hand-side of the system
+    shift: &T,                           // M ( A + shift * I ) x = M b, x = M^T y
+    tolerance: &T,                       // Absolute tolerance
+    maxiters: &usize,                    // maxium number of iterations allowed
+    plugin: &mut impl Plugin<T>,         // User-defined interactive Plugin
     Av: &mut [T],
     Mv: &mut [T],
     mut v: &'a mut [T],
@@ -55,7 +56,7 @@ pub fn minres_black_box_precond<'a, T: Float>(
     v_next.linear_comb(T::one(), b, -T::one(), Av);
     black_box.apply_precond(v, v_next);
 
-    residual = dot(v, v).sqrt();
+    residual = v.norm_2();
 
     if residual <= *tolerance {
         success = 1;
@@ -90,7 +91,7 @@ pub fn minres_black_box_precond<'a, T: Float>(
         black_box.apply_precond(Mv, Av);
         v_next.add(T::one(), Mv);
 
-        tb = dot(v_next, v_next).sqrt();
+        tb = v_next.norm_2();
         v_next.scale(T::one() / tb);
         // ---------------------------------------
         //

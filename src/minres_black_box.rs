@@ -1,9 +1,11 @@
 #![allow(non_snake_case)]
 
 use crate::operators::*;
+use crate::plugins::*;
 
 /// Implementation of the MINRES algorithm.
-/// Coefficient matrix required explicitly.
+/// Coefficient matrix is NOT explicittly required.
+/// Matrix-vector products are outsourced to you through a "black box" interface.
 pub fn minres_black_box<'a, T: Float>(
     x: &mut [T],                  // Solution vector (initial guess)
     black_box: &impl BlackBox<T>, // Black box plugin
@@ -49,7 +51,7 @@ pub fn minres_black_box<'a, T: Float>(
     Av.add(*shift, x);
     v.linear_comb(T::one(), b, T::one().neg(), Av);
 
-    residual = dot(v, v).sqrt();
+    residual = v.norm_2();
 
     if residual <= *tolerance {
         success = 1;
@@ -74,7 +76,7 @@ pub fn minres_black_box<'a, T: Float>(
         v_next.add(T::one(), Av);
         v_next.add(-ta, v);
 
-        tb = dot(v_next, v_next).sqrt();
+        tb = v_next.norm_2();
         v_next.scale(T::one() / tb);
         // ---------------------------------------
         //
@@ -151,15 +153,17 @@ mod tests {
     fn identity(#[case] x_vals: f64, #[case] b_vals: f64) {
         const N: usize = 10;
 
-        let Arows_cols: Vec<usize> = (0..N).collect();
+        let Arows: Vec<usize> = (0..N).collect();
+        let Acols: Vec<usize> = (0..N).collect();
         let Avals: Vec<f64> = vec![1.0; N];
 
         let b = vec![b_vals; N];
 
         let (mut x, mut error) = (vec![x_vals; N], vec![0.0; N]);
+
         let mut plugin = StopWatchAndPrinter::new();
 
-        let black_box_instance = BasicBlackBox { rows: &Arows_cols, cols: &Arows_cols, vals: &Avals };
+        let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
 
         let (_success, _residual, _iters) = minres_black_box(
             &mut x,
@@ -176,13 +180,12 @@ mod tests {
             &mut vec![0.0; N],
         );
 
-        spmv(&mut error, &Arows_cols, &Arows_cols, &Avals, &x);
-        error.add(-1.0, &b);
+        // Compute true residual
+        spmv(&mut error, &Arows, &Acols, &Avals, &x);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
-        let true_residual = dot(&error, &error).sqrt();
-
-        error.linear_comb(1.0, &x, -1.0, &b);
-        let solution_error = dot(&error, &error).sqrt();
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &b).norm_2();
 
         assert!(true_residual <= TOLERANCE);
         assert!(solution_error <= REDUCED_TOL);
@@ -222,13 +225,12 @@ mod tests {
             &mut vec![0.0; SIZE],
         );
 
+        // Compute true residual
         spmv(&mut error, &Arows, &Acols, &Avals, &x);
-        error.scale_add(-1.0, 1.0, &b);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
-        let true_residual = dot(&error, &error).sqrt();
-
-        error.linear_comb(1.0, &x, -1.0, &sol);
-        let solution_error = dot(&error, &error).sqrt();
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
 
         assert!(true_residual <= TOLERANCE);
         assert!(solution_error <= REDUCED_TOL);
@@ -268,13 +270,12 @@ mod tests {
             &mut vec![0.0; SIZE],
         );
 
+        // Compute true residual
         spmv(&mut error, &Arows, &Acols, &Avals, &x);
-        error.scale_add(-1.0, 1.0, &b);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
-        let true_residual = dot(&error, &error).sqrt();
-
-        error.linear_comb(1.0, &x, -1.0, &sol);
-        let solution_error = dot(&error, &error).sqrt();
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
 
         assert!(true_residual <= TOLERANCE);
         assert!(solution_error <= REDUCED_TOL);
@@ -314,13 +315,12 @@ mod tests {
             &mut vec![0.0; SIZE],
         );
 
+        // Compute true residual
         spmv(&mut error, &Arows, &Acols, &Avals, &x);
-        error.scale_add(-1.0, 1.0, &b);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
-        let true_residual = dot(&error, &error).sqrt();
-
-        error.linear_comb(1.0, &x, -1.0, &sol);
-        let solution_error = dot(&error, &error).sqrt();
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
 
         assert!(true_residual <= TOLERANCE);
         assert!(solution_error <= REDUCED_TOL);
@@ -338,17 +338,17 @@ mod tests {
 
         let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
 
-        let mut plugin = StopWatchAndPrinter::new();
+        let mut plugin = DoNothing::new();
+        // let mut plugin = StopWatchAndPrinter::new();
         let mut x = vec![0.0; size];
         let mut sol: Vec<f64> = vec![1.0; size];
-        let sol_norm: f64 = sol.norm_2(); // dot(&sol, &sol).sqrt();
+        let sol_norm: f64 = sol.norm_2();
         sol.scale(1.0 / sol_norm);
 
-        let mut error = vec![0.0; size];
         let mut b: Vec<f64> = vec![0.0; size];
         spmv(&mut b, &Arows, &Acols, &Avals, &sol);
 
-        for shift in [1e1, 1e0, 1e-1, 0.0] {
+        for shift in [1e1, 1e-1, 0.0] {
             minres_black_box(
                 &mut x,
                 &black_box_instance,
@@ -365,10 +365,13 @@ mod tests {
             );
         }
 
-        spmv(&mut error, &Arows, &Acols, &Avals, &x);
+        let mut error = vec![0.0; size];
 
+        // Compute true residual
+        spmv(&mut error, &Arows, &Acols, &Avals, &x);
         let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
+        // Compute solution error
         let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
 
         assert!(true_residual <= TOLERANCE);
