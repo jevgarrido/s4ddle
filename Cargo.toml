@@ -21,6 +21,12 @@ features = ["libm"]
 [dev-dependencies]
 rstest = "*"
 
-# [[example]]
-# name = "matrix_inverse"
-# crate-type = ["bin"]
+[[example]]
+name = "matrix_inverse"
+crate-type = ["bin"]
+
+
+[[example]]
+name = "equality_constrained_quadratic_program"
+crate-type = ["bin"]
+

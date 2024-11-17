@@ -221,7 +221,7 @@ mod tests {
         let mut prod: Vec<f64> = vec![0.0; sz];
         let v: Vec<f64> = vec![1.0; sz];
 
-        // Construct matrix
+        // Construct dense lower triangular matrix of ones
         let mut rows: Vec<usize> = vec![0; sz * (sz + 1) / 2];
         let mut cols: Vec<usize> = vec![0; sz * (sz + 1) / 2];
         let vals: Vec<f64> = vec![1.0; sz * (sz + 1) / 2];
@@ -239,15 +239,17 @@ mod tests {
             }
         }
 
-        // Apply matrix
+        // Apply lower-triangular matrix
         spmv(&mut prod, &rows, &cols, &vals, &v);
 
+        // Construct the expected result: increasing sequence of integers
         let mut expected_result: Vec<f64> = vec![0.0; sz];
 
         for (kk, val) in expected_result.iter_mut().enumerate() {
-            *val = kk as f64 + 1.0;
+            *val = (kk + 1) as f64;
         }
 
+        // Check that the product equals the expected result
         assert_eq!(prod, expected_result);
     }
 }
