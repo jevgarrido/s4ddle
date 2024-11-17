@@ -1,5 +1,3 @@
-use num_traits::ToPrimitive;
-
 use s4ddle::*;
 use s4ddle::operators::*;
 use s4ddle::plugins::*;
