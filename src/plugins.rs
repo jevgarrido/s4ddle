@@ -44,6 +44,8 @@ pub trait Plugin<T: Float> {
     fn end(&mut self);
 }
 
+// ----------------------
+
 /// A plugin implementation that does nothing.
 pub struct DoNothing;
 
@@ -61,6 +63,43 @@ impl<T: Float> Plugin<T> for DoNothing {
     #[inline(always)]
     fn end(&mut self) {}
 }
+
+// ----------------------
+
+/// A plugin implementation that measures execution time.
+#[cfg(feature = "std")]
+pub struct StopWatch {
+    now: std::time::Instant,
+    elapsed_time: std::time::Duration,
+}
+
+#[cfg(feature = "std")]
+impl StopWatch {
+    pub fn new() -> Self {
+        Self { now: std::time::Instant::now(), elapsed_time: std::time::Duration::new(0, 0) }
+    }
+    pub fn elapsed_time_in_seconds(&self) -> f64 {
+        self.elapsed_time.as_secs_f64()
+    }
+    pub fn elapsed_time_in_minutes(&self) -> f64 {
+        self.elapsed_time.as_secs_f64() / 60.0
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T: Float> Plugin<T> for StopWatch {
+    #[inline(always)]
+    fn start(&mut self) {
+        self.now = std::time::Instant::now();
+    }
+    fn peek(&mut self, _iter: &usize, _x: &[T], _p: &[T], _alpha: &T, _residual: &T) {}
+    #[inline(always)]
+    fn end(&mut self) {
+        self.elapsed_time = self.now.elapsed();
+    }
+}
+
+// ----------------------
 
 /// A plugin implementation that measures execution time and prints out some information at every
 /// iteration.
@@ -101,6 +140,8 @@ impl<T: Float> Plugin<T> for StopWatchAndPrinter {
         println!("Elapsed time: {:.3e} secs", self.elapsed_time.as_secs_f64());
     }
 }
+
+// ----------------------
 
 /// A plugin implementation that collects residuals and writes them to disk.
 #[cfg(feature = "std")]

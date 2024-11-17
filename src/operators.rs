@@ -98,6 +98,13 @@ impl<T: Float> FloatSliceOps<T> for [T] {
     }
 }
 
+/// Computes the dot product between two vectors. Vectors should have the same number of elements.
+/// Can be called with input types f32 and f64.
+#[inline(always)]
+pub fn dot<T: Float>(a: &[T], b: &[T]) -> T {
+    a.iter().zip(b.iter()).map(|(x, y)| *x * *y).sum::<T>()
+}
+
 /// Computes the sparse matrix-vector (SpMV) multiplication.
 /// $$y = A v$$
 /// Matrix should be in COO format.
@@ -110,21 +117,137 @@ pub fn spmv<T: Float>(product: &mut [T], mrows: &[usize], mcols: &[usize], mvals
     }
 }
 
-/// Computes the sparse matrix-vector (SpMV) multiplication with a transposed matrix.
-/// $$y = A^T v$$
-/// Matrix should be in COO format.
-/// Can be called with input types f32 and f64.
-#[inline(always)]
-pub fn spmv_transpose<T: Float>(product: &mut [T], mrows: &[usize], mcols: &[usize], mvals: &[T], vector: &[T]) {
-    product.reset();
-    for ((col, row), val) in mrows.iter().zip(mcols.iter()).zip(mvals.iter()) {
-        product[*row] += *val * vector[*col];
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
 
-/// Computes the dot product between two vectors. Vectors should have the same number of elements.
-/// Can be called with input types f32 and f64.
-#[inline(always)]
-pub fn dot<T: Float>(a: &[T], b: &[T]) -> T {
-    a.iter().zip(b.iter()).map(|(x, y)| *x * *y).sum::<T>()
+    #[rstest]
+    fn test_dot_orthogonal_vectors() {
+        let sz = 100;
+        let mut v1: Vec<f64> = vec![0.0; sz];
+        let mut v2: Vec<f64> = vec![0.0; sz];
+
+        for (kk, val) in v1.iter_mut().enumerate() {
+            if kk % 2 == 0 {
+                *val = 1.0;
+            }
+        }
+
+        v2.clone_from_slice(&v1);
+        v2.rotate_right(1);
+
+        // Check that vectors are non-zero
+        assert!(v1.norm_2() > 0.0);
+        assert!(v2.norm_2() > 0.0);
+
+        // Check that the dot product is zero.
+        assert_eq!(dot(&v1, &v2), 0.0);
+    }
+
+    #[rstest]
+    fn test_dot_sum_of_integers() {
+        let sz: usize = 100;
+
+        // Vector of ones
+        let v1: Vec<f64> = vec![1.0; sz];
+
+        // Vector of increasing integers values
+        let mut v2: Vec<f64> = vec![0.0; sz];
+
+        for (kk, val) in v2.iter_mut().enumerate() {
+            *val = kk as f64 + 1.0;
+        }
+
+        // Dot product equals the sum of elements of v2
+        assert_eq!(dot(&v1, &v2), v2.iter().sum());
+    }
+
+    #[rstest]
+    fn test_dot_norm() {
+        let sz: usize = 100;
+        let v1: Vec<f64> = vec![-2.0; sz];
+
+        // Check that the dot product matches the 2-Norm squared.
+        assert_eq!(dot(&v1, &v1), v1.norm_2().powi(2));
+    }
+
+    #[rstest]
+    fn test_spmv_identity() {
+        let sz: usize = 100;
+        let mut prod: Vec<f64> = vec![0.0; sz];
+
+        // Construct the identity matrix
+        let rows: Vec<usize> = (0..sz).collect();
+        let cols: Vec<usize> = (0..sz).collect();
+        let vals: Vec<f64> = vec![1.0; sz];
+
+        let v: Vec<f64> = vec![-1.0; sz];
+
+        spmv(&mut prod, &rows, &cols, &vals, &v);
+
+        // Check that the product equals the input vector.
+        assert_eq!(prod, v);
+    }
+
+    #[rstest]
+    fn test_spmv_anti_identity() {
+        let sz: usize = 100;
+        let mut prod: Vec<f64> = vec![0.0; sz];
+
+        // Construct the identity matrix
+        let rows: Vec<usize> = (0..sz).collect();
+        let cols: Vec<usize> = (0..sz).rev().collect();
+        let vals: Vec<f64> = vec![1.0; sz];
+
+        let mut v: Vec<f64> = vec![0.0; sz];
+
+        for (kk, val) in v.iter_mut().enumerate() {
+            *val = -(kk as f64 + 1.0);
+        }
+
+        // Apply anti-identity matrix
+        spmv(&mut prod, &rows, &cols, &vals, &v);
+
+        // Check that the product equals the reversed input vector.
+        v.reverse();
+        assert_eq!(prod, v);
+    }
+
+    #[rstest]
+    fn test_dense_lower_triangular_matrix() {
+        let sz: usize = 100;
+
+        let mut prod: Vec<f64> = vec![0.0; sz];
+        let v: Vec<f64> = vec![1.0; sz];
+
+        // Construct matrix
+        let mut rows: Vec<usize> = vec![0; sz * (sz + 1) / 2];
+        let mut cols: Vec<usize> = vec![0; sz * (sz + 1) / 2];
+        let vals: Vec<f64> = vec![1.0; sz * (sz + 1) / 2];
+
+        let mut kk: usize = 0;
+
+        for ii in 0..sz {
+            for jj in 0..sz {
+                if ii >= jj {
+                    rows[kk] = ii;
+                    cols[kk] = jj;
+
+                    kk += 1;
+                }
+            }
+        }
+
+        // Apply matrix
+        spmv(&mut prod, &rows, &cols, &vals, &v);
+
+        let mut expected_result: Vec<f64> = vec![0.0; sz];
+
+        for (kk, val) in expected_result.iter_mut().enumerate() {
+            *val = kk as f64 + 1.0;
+        }
+
+        assert_eq!(prod, expected_result);
+    }
 }
