@@ -1,4 +1,5 @@
 use std::fs;
+use crate::operators::*;
 
 /// Load a matrix from a file in Matrix Market format.
 pub fn mm_read(file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usize) {
@@ -93,6 +94,18 @@ pub fn mm_read(file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usi
 
 pub fn mm_import(_file_path: &str) -> (Vec<usize>, Vec<usize>, Vec<f64>, usize, usize) {
     todo!()
+}
+
+#[cfg(feature = "std")]
+pub fn write_float_slice_to_disk<T: Float>(float_slice: &[T], path: &str) {
+    use std::io::Write;
+
+    let f = fs::File::options().read(true).write(true).create(true).truncate(true).open(path).ok().unwrap();
+    let mut f = std::io::BufWriter::new(f);
+
+    for &val in float_slice.iter() {
+        writeln!(&mut f, "{val}").ok();
+    }
 }
 
 #[cfg(test)]

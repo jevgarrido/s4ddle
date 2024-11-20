@@ -54,6 +54,8 @@ pub fn minres_black_box_precond<'a, T: Float>(
     black_box.apply_A(Av, x);
     Av.add(*shift, x);
     v_next.linear_comb(T::one(), b, -T::one(), Av);
+
+    v.reset();
     black_box.apply_precond(v, v_next);
 
     residual = v.norm_2();
@@ -68,6 +70,8 @@ pub fn minres_black_box_precond<'a, T: Float>(
 
     p.reset();
     core::mem::swap(&mut x, &mut p);
+
+    x.reset();
     black_box.apply_precond_inverse_transpose(x, p);
 
     v_next.reset();
@@ -80,14 +84,18 @@ pub fn minres_black_box_precond<'a, T: Float>(
     for kk in 1..=*maxiters {
         iters = kk;
         // Lanczos Iteration ---------------------
+        Mv.reset();
         black_box.apply_precond_transpose(Mv, v);
+
+        Av.reset();
         black_box.apply_A(Av, Mv);
         Av.add(*shift, Mv);
-        ta = dot(Mv, Av);
+        ta = Mv.dot(Av);
 
         v_next.scale(-tb);
         v_next.add(-ta, v);
 
+        Mv.reset();
         black_box.apply_precond(Mv, Av);
         v_next.add(T::one(), Mv);
 
@@ -127,6 +135,8 @@ pub fn minres_black_box_precond<'a, T: Float>(
 
             p.reset();
             core::mem::swap(&mut x, &mut p);
+
+            x.reset();
             black_box.apply_precond_transpose(x, p);
             break;
         }

@@ -47,6 +47,7 @@ pub fn minres_black_box<'a, T: Float>(
     // -------------------------------------------
     //
     // Algorithm Initialization ------------------
+    Av.reset();
     black_box.apply_A(Av, x);
     Av.add(*shift, x);
     v.linear_comb(T::one(), b, T::one().neg(), Av);
@@ -68,9 +69,10 @@ pub fn minres_black_box<'a, T: Float>(
     for kk in 1..=*maxiters {
         iters = kk;
         // Lanczos Iteration ---------------------
+        Av.reset();
         black_box.apply_A(Av, v);
         Av.add(*shift, v);
-        ta = dot(v, Av);
+        ta = v.dot(Av);
 
         v_next.scale(-tb);
         v_next.add(T::one(), Av);
@@ -142,7 +144,7 @@ mod tests {
     impl<T: Float> BlackBox<T> for BasicBlackBox<'_, T> {
         #[inline(always)]
         fn apply_A(&self, product: &mut [T], vector: &[T]) {
-            spmv(product, self.rows, self.cols, self.vals, vector);
+            product.spmv(self.rows, self.cols, self.vals, vector);
         }
     }
 
@@ -161,7 +163,7 @@ mod tests {
 
         let (mut x, mut error) = (vec![x_vals; N], vec![0.0; N]);
 
-        let mut plugin = StopWatchAndPrinter::new();
+        let mut plugin = DoNothing::new();
 
         let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
 
@@ -181,7 +183,7 @@ mod tests {
         );
 
         // Compute true residual
-        spmv(&mut error, &Arows, &Acols, &Avals, &x);
+        error.spmv(&Arows, &Acols, &Avals, &x);
         let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
         // Compute solution error
@@ -194,7 +196,7 @@ mod tests {
     #[rstest]
     fn test_1by1() {
         let maxiters: usize = 100;
-        let mut plugin = StopWatchAndPrinter::new();
+        let mut plugin = DoNothing::new();
         const SIZE: usize = 1;
 
         let Arows: [usize; 1] = [0];
@@ -206,7 +208,7 @@ mod tests {
         let sol: [f64; SIZE] = [1.0];
 
         let mut b: [f64; SIZE] = [0.0; SIZE];
-        spmv(&mut b, &Arows, &Acols, &Avals, &sol);
+        b.spmv(&Arows, &Acols, &Avals, &sol);
 
         let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
 
@@ -226,7 +228,7 @@ mod tests {
         );
 
         // Compute true residual
-        spmv(&mut error, &Arows, &Acols, &Avals, &x);
+        error.spmv(&Arows, &Acols, &Avals, &x);
         let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
         // Compute solution error
@@ -239,7 +241,7 @@ mod tests {
     #[rstest]
     fn test_2by2() {
         let maxiters: usize = 100;
-        let mut plugin = StopWatchAndPrinter::new();
+        let mut plugin = DoNothing::new();
         const SIZE: usize = 2;
 
         let Arows: [usize; 3] = [0, 1, 0];
@@ -251,7 +253,7 @@ mod tests {
         let sol: [f64; SIZE] = [1.0, 1.0];
 
         let mut b: [f64; SIZE] = [0.0; SIZE];
-        spmv(&mut b, &Arows, &Acols, &Avals, &sol);
+        b.spmv(&Arows, &Acols, &Avals, &sol);
 
         let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
 
@@ -271,7 +273,7 @@ mod tests {
         );
 
         // Compute true residual
-        spmv(&mut error, &Arows, &Acols, &Avals, &x);
+        error.spmv(&Arows, &Acols, &Avals, &x);
         let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
         // Compute solution error
@@ -285,7 +287,7 @@ mod tests {
     fn test_4by4() {
         const SIZE: usize = 4;
         let maxiters: usize = 2 * SIZE;
-        let mut plugin = StopWatchAndPrinter::new();
+        let mut plugin = DoNothing::new();
 
         let Arows: [usize; 6] = [0, 2, 1, 3, 0, 1];
         let Acols: [usize; 6] = [0, 0, 1, 1, 2, 3];
@@ -296,7 +298,7 @@ mod tests {
         let sol: [f64; SIZE] = [1.0; SIZE];
 
         let mut b: [f64; SIZE] = [0.0; SIZE];
-        spmv(&mut b, &Arows, &Acols, &Avals, &sol);
+        b.spmv(&Arows, &Acols, &Avals, &sol);
 
         let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
 
@@ -316,7 +318,7 @@ mod tests {
         );
 
         // Compute true residual
-        spmv(&mut error, &Arows, &Acols, &Avals, &x);
+        error.spmv(&Arows, &Acols, &Avals, &x);
         let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
         // Compute solution error
@@ -339,14 +341,13 @@ mod tests {
         let black_box_instance = BasicBlackBox { rows: &Arows, cols: &Acols, vals: &Avals };
 
         let mut plugin = DoNothing::new();
-        // let mut plugin = StopWatchAndPrinter::new();
         let mut x = vec![0.0; size];
         let mut sol: Vec<f64> = vec![1.0; size];
         let sol_norm: f64 = sol.norm_2();
         sol.scale(1.0 / sol_norm);
 
         let mut b: Vec<f64> = vec![0.0; size];
-        spmv(&mut b, &Arows, &Acols, &Avals, &sol);
+        b.spmv(&Arows, &Acols, &Avals, &sol);
 
         for shift in [1e1, 1e-1, 0.0] {
             minres_black_box(
@@ -368,7 +369,7 @@ mod tests {
         let mut error = vec![0.0; size];
 
         // Compute true residual
-        spmv(&mut error, &Arows, &Acols, &Avals, &x);
+        error.spmv(&Arows, &Acols, &Avals, &x);
         let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
         // Compute solution error

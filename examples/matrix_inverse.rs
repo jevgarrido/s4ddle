@@ -21,14 +21,17 @@ fn main() {
     let shift: f64 = 0.0;
 
     // Specify tolerance
-    let tol: f64 = 1e-15;
+    let tol: f64 = 1e-12;
 
     // Specify max iterations allowed
     let max_iters = sz.pow(2);
 
     // Select an appropriate plugin.
-    // let mut plugin = DoNothing::new();
-    let mut plugin = StopWatch::new();
+    let mut do_nothing = DoNothing::new();
+    let mut console_logger = ConsoleLogger::extend(&mut do_nothing);
+    let mut plugin = StopWatch::extend(&mut console_logger);
+
+    // let mut plugin = StopWatch::extend(&mut do_nothing);
 
     // Initialize auxiliary vectors.
     let mut aux1: Vec<f64> = vec![0.0; sz];
@@ -40,10 +43,6 @@ fn main() {
     let mut average_solver_time: f64 = 0.0;
 
     let mut success: isize;
-
-    let mut outer_loop_timer = StopWatch::new();
-
-    <StopWatch as Plugin<f64>>::start(&mut outer_loop_timer);
 
     for kk in 0..sz {
         b.reset();
@@ -74,8 +73,6 @@ fn main() {
             / (kk.to_f64().unwrap() + 2.0);
     }
 
-    <StopWatch as Plugin<f64>>::end(&mut outer_loop_timer);
-
     // ----
     // Write the first (top left) 10x10 block of the matrix inverse to a csv file.
 
@@ -89,15 +86,18 @@ fn main() {
         .unwrap();
     let mut f = std::io::BufWriter::new(f);
 
+    println!(" ");
+    println!("Top left 10x10 block of the matrix inverse:");
+    println!(" ");
     for kk in 0..10 {
         for val in inverse_matrix[kk][0..10].iter() {
             write!(&mut f, "{val} ").ok();
+            print!("{val: <+14.7e} ");
         }
         write!(&mut f, "\n").ok();
+        print!("\n");
     }
 
-    println!("Success! ^^");
     println!("Total solver executions: {sz}.");
     println!("Average solver execution time: {:.7e} s.", average_solver_time);
-    println!("Total elapsed time: {:.7e} s.", outer_loop_timer.elapsed_time_in_seconds());
 }

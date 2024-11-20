@@ -31,7 +31,6 @@ impl Float for f32 {}
 pub trait FloatSliceOps<T: Float> {
     fn norm_1(&self) -> T;
     fn norm_2(&self) -> T;
-    fn max(&self) -> T;
 
     fn reset(&mut self) -> &mut Self;
     fn scale(&mut self, beta: T) -> &mut Self;
@@ -39,6 +38,9 @@ pub trait FloatSliceOps<T: Float> {
     fn add(&mut self, beta: T, y: &[T]) -> &mut Self;
     fn scale_add(&mut self, alpha: T, beta: T, y: &[T]) -> &mut Self;
     fn linear_comb(&mut self, a: T, x: &[T], b: T, y: &[T]) -> &mut Self;
+
+    fn dot(&self, other: &[T]) -> T;
+    fn spmv(&mut self, mrows: &[usize], mcols: &[usize], mvals: &[T], vector: &[T]) -> &mut Self;
 }
 
 impl<T: Float> FloatSliceOps<T> for [T] {
@@ -50,11 +52,6 @@ impl<T: Float> FloatSliceOps<T> for [T] {
     #[inline(always)]
     fn norm_2(&self) -> T {
         self.iter().map(|x| x.powi(2)).sum::<T>().sqrt()
-    }
-
-    #[inline(always)]
-    fn max(&self) -> T {
-        self.iter().max_by(|x, y| x.abs().partial_cmp(&y.abs()).unwrap()).unwrap().abs()
     }
 
     #[inline(always)]
@@ -73,6 +70,7 @@ impl<T: Float> FloatSliceOps<T> for [T] {
         self
     }
 
+    #[inline(always)]
     fn add(&mut self, beta: T, y: &[T]) -> &mut Self {
         for (kk, elm) in self.iter_mut().enumerate() {
             *elm += beta * y[kk];
@@ -89,6 +87,8 @@ impl<T: Float> FloatSliceOps<T> for [T] {
         self
     }
 
+    /// Linear combination of two vectors.
+    /// The original contents of the mutable input vector are disregarded and overwritten.
     #[inline(always)]
     fn linear_comb(&mut self, alpha: T, x: &[T], beta: T, y: &[T]) -> &mut Self {
         for (kk, elm) in self.iter_mut().enumerate() {
@@ -96,24 +96,22 @@ impl<T: Float> FloatSliceOps<T> for [T] {
         }
         self
     }
-}
 
-/// Computes the dot product between two vectors. Vectors should have the same number of elements.
-/// Can be called with input types f32 and f64.
-#[inline(always)]
-pub fn dot<T: Float>(a: &[T], b: &[T]) -> T {
-    a.iter().zip(b.iter()).map(|(x, y)| *x * *y).sum::<T>()
-}
+    /// Computes the dot product between two vectors.
+    /// Vectors should have the same number of elements.
+    #[inline(always)]
+    fn dot(&self, other: &[T]) -> T {
+        self.iter().zip(other.iter()).map(|(x, y)| *x * *y).sum::<T>()
+    }
 
-/// Computes the sparse matrix-vector (SpMV) multiplication.
-/// $$y = A v$$
-/// Matrix should be in COO format.
-/// Can be called with input types f32 and f64.
-#[inline(always)]
-pub fn spmv<T: Float>(product: &mut [T], mrows: &[usize], mcols: &[usize], mvals: &[T], vector: &[T]) {
-    product.reset();
-    for ((row, col), val) in mrows.iter().zip(mcols.iter()).zip(mvals.iter()) {
-        product[*row] += *val * vector[*col];
+    /// Computes the sparse matrix-vector (SpMV) multiplication.
+    /// Matrix should be in COO format.
+    #[inline(always)]
+    fn spmv(&mut self, mrows: &[usize], mcols: &[usize], mvals: &[T], vector: &[T]) -> &mut Self {
+        for ((row, col), val) in mrows.iter().zip(mcols.iter()).zip(mvals.iter()) {
+            self[*row] += *val * vector[*col];
+        }
+        self
     }
 }
 
@@ -142,7 +140,7 @@ mod tests {
         assert!(v2.norm_2() > 0.0);
 
         // Check that the dot product is zero.
-        assert_eq!(dot(&v1, &v2), 0.0);
+        assert_eq!(v1.dot(&v2), 0.0);
     }
 
     #[rstest]
@@ -160,7 +158,7 @@ mod tests {
         }
 
         // Dot product equals the sum of elements of v2
-        assert_eq!(dot(&v1, &v2), v2.iter().sum());
+        assert_eq!(v1.dot(&v2), v2.iter().sum());
     }
 
     #[rstest]
@@ -169,7 +167,7 @@ mod tests {
         let v1: Vec<f64> = vec![-2.0; sz];
 
         // Check that the dot product matches the 2-Norm squared.
-        assert_eq!(dot(&v1, &v1), v1.norm_2().powi(2));
+        assert_eq!(v1.dot(&v1), v1.norm_2().powi(2));
     }
 
     #[rstest]
@@ -184,7 +182,7 @@ mod tests {
 
         let v: Vec<f64> = vec![-1.0; sz];
 
-        spmv(&mut prod, &rows, &cols, &vals, &v);
+        prod.spmv(&rows, &cols, &vals, &v);
 
         // Check that the product equals the input vector.
         assert_eq!(prod, v);
@@ -207,7 +205,7 @@ mod tests {
         }
 
         // Apply anti-identity matrix
-        spmv(&mut prod, &rows, &cols, &vals, &v);
+        prod.spmv(&rows, &cols, &vals, &v);
 
         // Check that the product equals the reversed input vector.
         v.reverse();
@@ -240,7 +238,7 @@ mod tests {
         }
 
         // Apply lower-triangular matrix
-        spmv(&mut prod, &rows, &cols, &vals, &v);
+        prod.spmv(&rows, &cols, &vals, &v);
 
         // Construct the expected result: increasing sequence of integers
         let mut expected_result: Vec<f64> = vec![0.0; sz];
