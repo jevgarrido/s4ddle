@@ -1,2 +1,8 @@
 *.csv filter=lfs diff=lfs merge=lfs -text
 *.mtx filter=lfs diff=lfs merge=lfs -text
+
+# Git will always convert line endings of the following files to LF on checkout.
+*.rs text eol=lf
+Cargo.toml text eol=lf
+Cargo.lock text eol=lf
+.gitignore text eol=lf
