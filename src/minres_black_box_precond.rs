@@ -7,7 +7,7 @@ use crate::plugins::*;
 /// Coefficient matrix and preconditioner are NOT explicittly required.
 /// Matrix-vector products are outsourced to you through a "black box" interface.
 pub fn minres_black_box_precond<'a, T: Float>(
-    mut x: &'a mut [T],                  // Solution vector (initial guess)
+    x: &'a mut [T],                      // Solution vector (initial guess)
     black_box: &impl BlackBoxPrecond<T>, // Black box plugin
     b: &[T],                             // Right-hand-side of the system
     shift: &T,                           // M ( A + shift * I ) x = M b, x = M^T y
@@ -49,7 +49,7 @@ pub fn minres_black_box_precond<'a, T: Float>(
     //
     // Algorithm Initialization ------------------
 
-    // v1 = r0 = M * [ b - (A + shift * I ) * x0 ]
+    // v1 = r0 = M * [ b - ( A*x0 + shift * x0 ) ]
     Av.reset();
     black_box.apply_A(Av, x);
     Av.add(*shift, x);
@@ -68,8 +68,7 @@ pub fn minres_black_box_precond<'a, T: Float>(
 
     v.scale(T::one() / residual);
 
-    p.reset();
-    core::mem::swap(&mut x, &mut p);
+    p.copy_from_slice(&x);
 
     x.reset();
     black_box.apply_precond_inverse_transpose(x, p);
@@ -132,12 +131,6 @@ pub fn minres_black_box_precond<'a, T: Float>(
 
         if residual <= *tolerance {
             success = 1;
-
-            p.reset();
-            core::mem::swap(&mut x, &mut p);
-
-            x.reset();
-            black_box.apply_precond_transpose(x, p);
             break;
         }
         // ---------------------------------------
@@ -149,6 +142,300 @@ pub fn minres_black_box_precond<'a, T: Float>(
         // ---------------------------------------
     }
 
+    p.copy_from_slice(&x);
+    x.reset();
+    black_box.apply_precond_transpose(x, p);
+
     plugin.end();
     return (success, residual, iters);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::readwrite::*;
+    use rstest::*;
+
+    const TOLERANCE: f64 = 1e-12;
+    const REDUCED_TOL: f64 = 1e-8;
+
+    struct MatrixAndDiagonalPreconditioner<'a, T: Float> {
+        rows: &'a [usize],
+        cols: &'a [usize],
+        vals: &'a [T],
+        p_vals: &'a [T],
+    }
+
+    impl<T: Float> BlackBox<T> for MatrixAndDiagonalPreconditioner<'_, T> {
+        #[inline(always)]
+        fn apply_A(&self, product: &mut [T], vector: &[T]) {
+            product.spmv(self.rows, self.cols, self.vals, vector);
+        }
+    }
+
+    impl<T: Float> BlackBoxPrecond<T> for MatrixAndDiagonalPreconditioner<'_, T> {
+        #[inline(always)]
+        fn apply_precond(&self, product: &mut [T], vector: &[T]) {
+            for (idx, val) in self.p_vals.iter().enumerate() {
+                product[idx] += *val * vector[idx];
+            }
+        }
+        #[inline(always)]
+        fn apply_precond_transpose(&self, product: &mut [T], vector: &[T]) {
+            self.apply_precond(product, vector);
+        }
+        #[inline(always)]
+        fn apply_precond_inverse_transpose(&self, product: &mut [T], vector: &[T]) {
+            for (idx, val) in self.p_vals.iter().enumerate() {
+                product[idx] += (T::one() / *val) * vector[idx];
+            }
+        }
+    }
+
+    #[rstest]
+    #[case(0.0, -3.0)]
+    #[case(-3.0, -3.0)]
+    #[case(-3.0, 5.0)]
+    fn identity(#[case] x_vals: f64, #[case] b_vals: f64) {
+        const N: usize = 10;
+
+        let Arows: Vec<usize> = (0..N).collect();
+        let Acols: Vec<usize> = (0..N).collect();
+        let Avals: Vec<f64> = vec![1.0; N];
+        let Pvals: Vec<f64> = vec![1.0; N]; // Identity preconditioner
+
+        let b = vec![b_vals; N];
+
+        let (mut x, mut error) = (vec![x_vals; N], vec![0.0; N]);
+
+        let mut plugin = DoNothing::new();
+
+        let black_box_instance =
+            MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
+
+        let (_success, _residual, _iters) = minres_black_box_precond(
+            &mut x,
+            &black_box_instance,
+            &b,
+            &0.0,
+            &TOLERANCE,
+            &N,
+            &mut plugin,
+            &mut vec![0.0; N],
+            &mut vec![0.0; N],
+            &mut vec![0.0; N],
+            &mut vec![0.0; N],
+            &mut vec![0.0; N],
+            &mut vec![0.0; N],
+        );
+
+        // Compute true residual
+        error.spmv(&Arows, &Acols, &Avals, &x);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
+
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &b).norm_2();
+
+        assert!(true_residual <= TOLERANCE);
+        assert!(solution_error <= REDUCED_TOL);
+    }
+
+    #[rstest]
+    fn test_1by1() {
+        let maxiters: usize = 100;
+        let mut plugin = DoNothing::new();
+        const SIZE: usize = 1;
+
+        let Arows: [usize; 1] = [0];
+        let Acols: [usize; 1] = [0];
+        let Avals: [f64; 1] = [2.0; 1];
+        let Pvals: [f64; 1] = [1.0 / (2.0f64.sqrt()); 1];
+
+        let black_box_instance =
+            MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
+
+        let sol: [f64; SIZE] = [1.0];
+
+        let mut b: [f64; SIZE] = [0.0; SIZE];
+        b.spmv(&Arows, &Acols, &Avals, &sol);
+
+        let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
+
+        let (_success, _residual, _iters) = minres_black_box_precond(
+            &mut x,
+            &black_box_instance,
+            &b,
+            &0.0,
+            &TOLERANCE,
+            &maxiters,
+            &mut plugin,
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+        );
+
+        // Compute true residual
+        error.spmv(&Arows, &Acols, &Avals, &x);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
+
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
+
+        assert!(true_residual <= TOLERANCE);
+        assert!(solution_error <= REDUCED_TOL);
+    }
+
+    #[rstest]
+    fn test_2by2() {
+        let maxiters: usize = 100;
+        let mut plugin = DoNothing::new();
+        const SIZE: usize = 2;
+
+        let Arows: [usize; 3] = [0, 1, 0];
+        let Acols: [usize; 3] = [0, 0, 1];
+        let Avals: [f64; 3] = [1.0, 1.0, 1.0];
+        let Pvals: [f64; 2] = [0.8408964, 1.0];
+
+        let black_box_instance =
+            MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
+
+        let sol: [f64; SIZE] = [1.0, 1.0];
+
+        let mut b: [f64; SIZE] = [0.0; SIZE];
+        b.spmv(&Arows, &Acols, &Avals, &sol);
+
+        let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
+
+        let (_success, _residual, _iters) = minres_black_box_precond(
+            &mut x,
+            &black_box_instance,
+            &b,
+            &0.0,
+            &TOLERANCE,
+            &maxiters,
+            &mut plugin,
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+        );
+
+        // Compute true residual
+        error.spmv(&Arows, &Acols, &Avals, &x);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
+
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
+
+        assert!(true_residual <= TOLERANCE);
+        assert!(solution_error <= REDUCED_TOL);
+    }
+
+    #[rstest]
+    fn test_4by4() {
+        const SIZE: usize = 4;
+        let maxiters: usize = 2 * SIZE;
+        let mut plugin = DoNothing::new();
+
+        let Arows: [usize; 6] = [0, 2, 1, 3, 0, 1];
+        let Acols: [usize; 6] = [0, 0, 1, 1, 2, 3];
+        let Avals: [f64; 6] = [3.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+        let Pvals: [f64; 4] = [0.562341325190349, 0.840896415253715, 1.0, 1.0];
+
+        let black_box_instance =
+            MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
+
+        let sol: [f64; SIZE] = [1.0; SIZE];
+
+        let mut b: [f64; SIZE] = [0.0; SIZE];
+        b.spmv(&Arows, &Acols, &Avals, &sol);
+
+        let (mut x, mut error) = (vec![0.0; SIZE], vec![0.0; SIZE]);
+
+        let (_success, _residual, _iters) = minres_black_box_precond(
+            &mut x,
+            &black_box_instance,
+            &b,
+            &0.0,
+            &TOLERANCE,
+            &maxiters,
+            &mut plugin,
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+            &mut vec![0.0; SIZE],
+        );
+
+        // Compute true residual
+        error.spmv(&Arows, &Acols, &Avals, &x);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
+
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
+
+        assert!(true_residual <= TOLERANCE);
+        assert!(solution_error <= REDUCED_TOL);
+    }
+
+    #[rstest]
+    #[case("./data/nemeth01.csv")]
+    #[case("./data/nemeth26.csv")]
+    #[case("./data/GHS_indef_qpband.csv")]
+    #[case("./data/GHS_indef_tuma2.csv")]
+    #[case("./data/GHS_indef_linverse.csv")]
+    #[case("./data/FIDAP_ex4.csv")]
+    fn test_matrix_market(#[case] file_path: &str) {
+        let (Arows, Acols, Avals, size, _nonzeros) = mm_read(file_path);
+
+        let Pvals: Vec<f64> = vec![1.0; size];
+
+        let black_box_instance =
+            MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
+
+        let mut plugin = DoNothing::new();
+        let mut x = vec![0.0; size];
+        let mut sol: Vec<f64> = vec![1.0; size];
+        let sol_norm: f64 = sol.norm_2();
+        sol.scale(1.0 / sol_norm);
+
+        let mut b: Vec<f64> = vec![0.0; size];
+        b.spmv(&Arows, &Acols, &Avals, &sol);
+
+        for shift in [1e1, 1e-1, 0.0] {
+            minres_black_box_precond(
+                &mut x,
+                &black_box_instance,
+                &b,
+                &shift,
+                &TOLERANCE,
+                &(2 * size),
+                &mut plugin,
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+                &mut vec![0.0; size],
+            );
+        }
+
+        let mut error = vec![0.0; size];
+
+        // Compute true residual
+        error.spmv(&Arows, &Acols, &Avals, &x);
+        let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
+
+        // Compute solution error
+        let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
+
+        assert!(true_residual <= TOLERANCE);
+        assert!(solution_error <= REDUCED_TOL);
+    }
 }
