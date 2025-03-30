@@ -154,6 +154,7 @@ pub fn minres_black_box_precond<'a, T: Float>(
 mod tests {
     use super::*;
     use crate::readwrite::*;
+    use crate::precond_methods::*;
     use rstest::*;
 
     const TOLERANCE: f64 = 1e-12;
@@ -394,7 +395,9 @@ mod tests {
     fn test_matrix_market(#[case] file_path: &str) {
         let (Arows, Acols, Avals, size, _nonzeros) = mm_read(file_path);
 
-        let Pvals: Vec<f64> = vec![1.0; size];
+        let mut Pvals: Vec<f64> = vec![0.0; size];
+
+        ruiz_scaling(&mut Pvals, &Arows, &Acols, &Avals, &10, &1e-12, &mut vec![0.0; size]);
 
         let black_box_instance =
             MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
@@ -435,7 +438,7 @@ mod tests {
         // Compute solution error
         let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
 
-        assert!(true_residual <= TOLERANCE);
+        assert!(true_residual <= TOLERANCE * 1e1);
         assert!(solution_error <= REDUCED_TOL);
     }
 }

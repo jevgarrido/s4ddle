@@ -11,5 +11,8 @@ mod minres;
 mod minres_black_box;
 mod minres_black_box_precond;
 
+pub use precond_methods::*;
+mod precond_methods;
+
 #[cfg(feature = "std")]
 pub mod readwrite;
