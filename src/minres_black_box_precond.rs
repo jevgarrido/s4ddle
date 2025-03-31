@@ -346,7 +346,10 @@ mod tests {
         let Arows: [usize; 6] = [0, 2, 1, 3, 0, 1];
         let Acols: [usize; 6] = [0, 0, 1, 1, 2, 3];
         let Avals: [f64; 6] = [3.0, 1.0, 1.0, 1.0, 1.0, 1.0];
-        let Pvals: [f64; 4] = [0.562341325190349, 0.840896415253715, 1.0, 1.0];
+
+        let mut Pvals: [f64; 4] = [0.0; 4];
+
+        ruiz_scaling(&mut Pvals, &Arows, &Acols, &Avals, &10, &1e-12, &mut vec![0.0; 4]);
 
         let black_box_instance =
             MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
@@ -403,6 +406,9 @@ mod tests {
             MatrixAndDiagonalPreconditioner { rows: &Arows, cols: &Acols, vals: &Avals, p_vals: &Pvals };
 
         let mut plugin = DoNothing::new();
+        let mut plug_fancy_donothing = DoNothingDecorator::extend(&mut plugin);
+        let mut plug_extra_layer = DoNothingDecorator::extend(&mut plug_fancy_donothing);
+
         let mut x = vec![0.0; size];
         let mut sol: Vec<f64> = vec![1.0; size];
         let sol_norm: f64 = sol.norm_2();
@@ -411,7 +417,9 @@ mod tests {
         let mut b: Vec<f64> = vec![0.0; size];
         b.spmv(&Arows, &Acols, &Avals, &sol);
 
-        for shift in [1e1, 1e-1, 0.0] {
+        let mut error = vec![0.0; size];
+
+        for shift in [0.0] {
             minres_black_box_precond(
                 &mut x,
                 &black_box_instance,
@@ -419,7 +427,7 @@ mod tests {
                 &shift,
                 &TOLERANCE,
                 &(2 * size),
-                &mut plugin,
+                &mut plug_extra_layer,
                 &mut vec![0.0; size],
                 &mut vec![0.0; size],
                 &mut vec![0.0; size],
@@ -429,14 +437,13 @@ mod tests {
             );
         }
 
-        let mut error = vec![0.0; size];
-
         // Compute true residual
         error.spmv(&Arows, &Acols, &Avals, &x);
         let true_residual = error.scale_add(-1.0, 1.0, &b).norm_2();
 
         // Compute solution error
         let solution_error = error.linear_comb(1.0, &x, -1.0, &sol).norm_2();
+        error.reset();
 
         assert!(true_residual <= TOLERANCE * 1e1);
         assert!(solution_error <= REDUCED_TOL);

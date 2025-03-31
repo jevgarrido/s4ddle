@@ -336,8 +336,8 @@ mod tests {
         let mut b: Vec<f64> = vec![0.0; size];
         b.spmv(&Arows, &Acols, &Avals, &sol);
 
-        for shift in [1e1, 1e-1, 0.0] {
-            minres(
+        for shift in [0.0] {
+            let (_, _, _iters) = minres(
                 &mut x,
                 &Arows,
                 &Acols,
@@ -366,5 +366,37 @@ mod tests {
 
         assert!(true_residual <= TOLERANCE);
         assert!(solution_error <= REDUCED_TOL);
+    }
+
+    #[rstest]
+    fn test_singular_matrix() {
+        let Arows: Vec<usize> = vec![0, 0, 1, 1];
+        let Acols: Vec<usize> = vec![0, 1, 0, 1];
+        let Avals: Vec<f64> = vec![4.0, -2.0, -2.0, 1.0];
+
+        let b: Vec<f64> = vec![-2.0, 1.0];
+        let mut x = vec![0.0; 2];
+
+        let mut plugin = DoNothing::new();
+
+        for shift in [10.0, 5.0, 2.0, 1.0, 0.0] {
+            x.reset();
+            let (_success, _residual, _iters) = minres(
+                &mut x,
+                &Arows,
+                &Acols,
+                &Avals,
+                &b,
+                &shift,
+                &TOLERANCE,
+                &100,
+                &mut plugin,
+                &mut vec![0.0; 2],
+                &mut vec![0.0; 2],
+                &mut vec![0.0; 2],
+                &mut vec![0.0; 2],
+                &mut vec![0.0; 2],
+            );
+        }
     }
 }

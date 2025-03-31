@@ -11,10 +11,11 @@ pub fn ruiz_scaling<T: Float>(
     tol: &T,
     row_norms: &mut [T],
 ) {
+    let mut convergence_achieved = true;
+
     for elm in precond.iter_mut() {
         *elm = T::one();
     }
-    let mut convergence_achieved = true;
 
     for _ in 0..*max_iters {
         row_norms.reset();
@@ -41,7 +42,7 @@ pub fn ruiz_scaling<T: Float>(
         }
 
         for (idx, elm) in precond.iter_mut().enumerate() {
-            *elm = T::one() / row_norms[idx].sqrt();
+            *elm = *elm / row_norms[idx].sqrt();
         }
     }
 }
@@ -66,7 +67,9 @@ mod tests {
         let max_iters = 12;
         let tol = 1e-12;
         let mut precond_diag = vec![0.0; size];
+        let mut row_norms = vec![0.0; size];
 
-        ruiz_scaling(&mut precond_diag, &Arows, &Acols, &Avals, &max_iters, &tol, &mut vec![0.0; size]);
+        ruiz_scaling(&mut precond_diag, &Arows, &Acols, &Avals, &max_iters, &tol, &mut row_norms);
+        // dbg!(&precond_diag[0..10], &row_norms[0..10]);
     }
 }
