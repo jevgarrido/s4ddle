@@ -4,7 +4,38 @@ use crate::operators::*;
 // Black Box APIs
 // ------------------------------------------------------------------------------------------------
 
-/// API for hiden matrix-vector product kernel.
+/// API for hiden matrix-vector product.
+///
+/// **Example Usage:** Implementation for f32
+/// ```rust
+/// use s4ddle::plugins::BlackBox;
+///
+/// struct MyFancyMatrixEncapsulationStruct {
+///  // > Your necessary properties
+/// }
+///
+/// impl BlackBox<f32> for MyFancyMatrixEncapsulationStruct {
+///     fn apply_A(&self, product: &mut [f32], vector: &[f32]){
+///     // Specify the kernel operation with access to your struct fields
+///     }
+/// }
+/// ```
+///
+/// **Example Usage:** Implementation for both f32 and f64 with generic type Float
+/// ```rust
+/// use s4ddle::plugins::BlackBox;
+/// use s4ddle::operators::Float;
+///
+/// struct MyFancyMatrixEncapsulationStruct {
+///  // > Your necessary properties
+/// }
+///
+/// impl<F: Float> BlackBox<F> for MyFancyMatrixEncapsulationStruct {
+///     fn apply_A(&self, product: &mut [F], vector: &[F]){
+///     // Specify the kernel operation with access to your struct fields
+///     }
+/// }
+/// ```
 pub trait BlackBox<T: Float> {
     #[allow(non_snake_case)]
     fn apply_A(&self, product: &mut [T], vector: &[T]);
@@ -13,6 +44,63 @@ pub trait BlackBox<T: Float> {
 /// API for hiden matrix-vector products in algorithms that employ preconditioning of the form
 /// $M A x = M b$ with $x = M^T y$, or, equivalently,
 /// $M A M^T y = M b$ with $x = M^T y$.
+///
+/// **Example Usage:** Implementation for f32
+/// ```rust
+/// use s4ddle::plugins::{BlackBox, BlackBoxPrecond};
+///
+/// struct MyFancyMatrixEncapsulationStruct {
+///  // > Your necessary properties
+/// }
+///
+/// // Implement BlackBox first
+/// impl BlackBox<f32> for MyFancyMatrixEncapsulationStruct {
+///     fn apply_A(&self, product: &mut [f32], vector: &[f32]){
+///     // Specify the kernel operation with access to your struct fields
+///     }
+/// }
+///
+/// impl BlackBoxPrecond<f32> for MyFancyMatrixEncapsulationStruct {
+///     fn apply_precond(&self, product: &mut [f32], vector: &[f32]){
+///     // Specify the necessary operation with access to your struct fields
+///     }
+///     fn apply_precond_transpose(&self, product: &mut [f32], vector: &[f32]){
+///     // Specify the necessary operation with access to your struct fields
+///     }
+///     fn apply_precond_inverse_transpose(&self, product: &mut [f32], vector: &[f32]){
+///     // Specify the necessary operation with access to your struct fields
+///     }
+/// }
+/// ```
+///
+/// **Example Usage:** Implementation for both f32 and f64 with generic type Float
+/// ```rust
+/// use s4ddle::plugins::{BlackBox, BlackBoxPrecond};
+/// use s4ddle::operators::Float;
+///
+/// struct MyFancyMatrixEncapsulationStruct {
+///  // > Your necessary properties
+/// }
+///
+/// // Implement BlackBox first
+/// impl<F: Float> BlackBox<F> for MyFancyMatrixEncapsulationStruct {
+///     fn apply_A(&self, product: &mut [F], vector: &[F]){
+///     // Specify the kernel operation with access to your struct fields
+///     }
+/// }
+///
+/// impl<F: Float> BlackBoxPrecond<F> for MyFancyMatrixEncapsulationStruct {
+///     fn apply_precond(&self, product: &mut [F], vector: &[F]){
+///     // Specify the necessary operation with access to your struct fields
+///     }
+///     fn apply_precond_transpose(&self, product: &mut [F], vector: &[F]){
+///     // Specify the necessary operation with access to your struct fields
+///     }
+///     fn apply_precond_inverse_transpose(&self, product: &mut [F], vector: &[F]){
+///     // Specify the necessary operation with access to your struct fields
+///     }
+/// }
+/// ```
 pub trait BlackBoxPrecond<T: Float>: BlackBox<T> {
     fn apply_precond(&self, product: &mut [T], vector: &[T]);
     fn apply_precond_transpose(&self, product: &mut [T], vector: &[T]);
@@ -145,11 +233,11 @@ impl<T: Float, P: Plugin<T>> Plugin<T> for CollectResiduals<'_, T, P> {
 
 /// A plugin implementation that collects solution errors using the decorator pattern.
 /// This plugin collects the value of || ***x*** - ***<ins>x</ins>*** || (2-Norm) at each
-/// iteration, where ***<ins>x</ins>*** denotes the (known) solution of the system.
+/// iteration, where ***<ins>x</ins>*** denotes the (known) solution of the problem.
 ///
 /// This struct does not own the data on which it operates, so the values are stored in external mutable vectors.
 ///
-/// Example Usage:
+/// **Example Usage:**
 /// ```rust
 /// # use s4ddle::plugins::*;
 /// # use s4ddle::operators::*;
@@ -158,20 +246,21 @@ impl<T: Float, P: Plugin<T>> Plugin<T> for CollectResiduals<'_, T, P> {
 ///
 /// let mut vector_of_errors = [0.0_f64;NUM_ITERATIONS];
 /// let mut vector_of_differences = [0.0_f64;PROB_SIZE];
-/// let solution = [1.0_f64;PROB_SIZE];
+/// let solution = [1.0_f64;PROB_SIZE]; // <- known solution
 ///
 /// let mut base_plugin = DoNothing::new(); // <- Base decorator plugin
 ///
-/// let mut residual_collector_plugin: CollectSolutionErrors<'_,f64,_> =
+/// let mut error_collector_plugin: CollectSolutionErrors<'_,f64,_> =
 ///     CollectSolutionErrors::extend(
 ///         &mut base_plugin,
 ///         &solution,
 ///         &mut vector_of_errors,
 ///         &mut vector_of_differences);
 ///
+/// // -> Call solver [...]
+///
 /// println!("{:?}", vector_of_errors);
 /// ```
-///
 pub struct CollectSolutionErrors<'a, T: Float, P: Plugin<T>> {
     plugin: &'a mut P,
     //
@@ -206,6 +295,7 @@ impl<T: Float, P: Plugin<T>> Plugin<T> for CollectSolutionErrors<'_, T, P> {
         self.plugin.end();
     }
 }
+
 // --------------------------------------------------------------------------------------------
 
 #[cfg(feature = "std")]
